@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpuA40x4
 #SBATCH --account=bfoz-delta-gpu
-#SBATCH --time=47:59:59
+#SBATCH --time=35:59:59
 #SBATCH --gpus-per-node=4
 
 source /u/aseo/anaconda3/bin/activate
@@ -23,11 +23,11 @@ export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((NUM_GPUS_PER_NODE-1)))
 
 PROJECT_DIR="$(pwd)"
 CONFIG_PATH="$PROJECT_DIR/examples/sglang_multiturn/config"
-LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/train_4_16384/agent_model_train_4_16384.log}"
+LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/train_4_16384_shortest/agent_model_train_4_16384_shortest.log}"
 mkdir -p "$(dirname "$LOG_PATH")"
 : > "$LOG_PATH"
 export VERL_AGENT_IO_LOG_PATH="$LOG_PATH"
-export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/train_4_16384/game_log_train_4_16384.log"
+export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/train_4_16384_shortest/game_log_train_4_16384_shortest.log"
 
 NUM_ENVS=32
 BATCH_SIZE=256
@@ -77,12 +77,12 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup_batch_divide_ratio=4 \
     trainer.logger='["console","wandb"]' \
     trainer.project_name='interactive' \
-    trainer.experiment_name='marl_4_16384' \
+    trainer.experiment_name='marl_4_16384_shortest' \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.save_freq=-1 \
     trainer.test_freq=30 \
-    trainer.total_epochs=60 \
+    trainer.total_epochs=15 \
     trainer.val_before_train=True \
     envs.num_envs=${NUM_ENVS} \
     envs.env_name=async_ticker_admissions \
