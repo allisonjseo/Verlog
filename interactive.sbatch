@@ -23,7 +23,7 @@ export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((NUM_GPUS_PER_NODE-1)))
 
 PROJECT_DIR="$(pwd)"
 CONFIG_PATH="$PROJECT_DIR/examples/sglang_multiturn/config"
-LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/agent_model_interactive2.log}"
+LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/interactive/agent_model_interactive2.log}"
 mkdir -p "$(dirname "$LOG_PATH")"
 : > "$LOG_PATH"
 export VERL_AGENT_IO_LOG_PATH="$LOG_PATH"

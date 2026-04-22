@@ -55,6 +55,13 @@ class AsyncTickerAdmissionsEnv(gym.Env):
         self.max_prompt_words = config.get("max_prompt_words", None)
         self.prompt_length = config.get("prompt_length", None)
 
+        # Reward mode: "individual" (default), "group", or "combined"
+        # "individual": each agent receives their own utility for the chosen student
+        # "group": all agents receive the sum of all utilities (social welfare)
+        # "combined": alpha * individual + (1-alpha) * group_utility
+        self.reward_mode = config.get("reward_mode", "individual")
+        self.reward_alpha = config.get("reward_alpha", 0.5)  # weight for individual in "combined" mode
+
         # System prompt configuration
         # Can be a single string (used for all agents) or dict mapping agent_id -> prompt
         self.system_prompt = config.get("system_prompt", None)
@@ -161,11 +168,9 @@ class AsyncTickerAdmissionsEnv(gym.Env):
             f"- To cast a vote you MUST use the tag <VOTE>N</VOTE> where N is the student index (0-{self.students_per_batch - 1}).\n"
             f"  Example: <THINK>Student 2 is best.</THINK><VOTE>2</VOTE>\n"
             f"- NEVER write your vote inside a <GROUP> message. <GROUP>Vote for Student 2</GROUP> does NOT count as a vote.\n"
-            f"- <VOTE> is a FINAL, IRREVOCABLE commitment. Once you vote, you cannot act again.\n"
+            f"- <VOTE> is a REVOCABLE action. As long as the game is ongoing, you can change your vote.\n"
             f"- ALWAYS check the CURRENT VOTE TALLY shown in your observation before acting.\n"
-            f"- If you see that 2 professors already agree on a student, vote for that student immediately to reach consensus — even if it is not your top choice. Getting something is better than everyone getting 0.\n"
-            f"- If you have made up your mind, VOTE immediately using <VOTE>N</VOTE>. Do not send GROUP messages about it.\n"
-            f"- Discussing your intention to vote in a GROUP message wastes tokens. Use <VOTE>N</VOTE> directly.\n\n"
+            f"- If you have made up your mind, you should VOTE using <VOTE>N</VOTE>.\n\n"
             f"STRATEGIC CONSIDERATIONS:\n"
             f"- Your utility scores are shown in the student table. Use them to guide your preferences.\n"
             f"- DO NOT reveal your exact utility numbers to others in <GROUP> messages.\n"
@@ -735,11 +740,32 @@ class AsyncTickerAdmissionsEnv(gym.Env):
 
         selected_student = self.student_batch[consensus_choice]
 
-        return {
+        # Calculate per-agent individual utilities
+        individual_utils = {
             agent_id: self._calculate_utility_for_student(
                 self.professor_interests[agent_id],
                 selected_student["profile_vector"],
-            ) - (invalid_counts[agent_id] * invalid_penalty)
+            )
+            for agent_id in self.professor_ids
+        }
+
+        # Group utility = sum of all individual utilities (social welfare)
+        group_utility = sum(individual_utils.values())
+
+        # Select base reward based on reward_mode config
+        if self.reward_mode == "group":
+            base_rewards = {agent_id: group_utility for agent_id in self.professor_ids}
+        elif self.reward_mode == "combined":
+            alpha = self.reward_alpha
+            base_rewards = {
+                agent_id: alpha * individual_utils[agent_id] + (1.0 - alpha) * group_utility
+                for agent_id in self.professor_ids
+            }
+        else:  # "individual" (default)
+            base_rewards = individual_utils
+
+        return {
+            agent_id: base_rewards[agent_id] - (invalid_counts[agent_id] * invalid_penalty)
             for agent_id in self.professor_ids
         }
 
@@ -769,7 +795,21 @@ class AsyncTickerAdmissionsEnv(gym.Env):
 
         optimal_total_utility = max(all_utilities)
         optimal_student = all_utilities.index(optimal_total_utility)
-        actual_total_utility = sum(agent_rewards.values())
+
+        # Always compute actual utility from individual utilities, not agent_rewards,
+        # because reward signals in group/combined modes inflate the sum by N.
+        consensus_choice = self.episode_state.get("consensus_choice")
+        if consensus_choice is not None and 0 <= consensus_choice < len(self.student_batch):
+            selected_student = self.student_batch[consensus_choice]
+            actual_total_utility = sum(
+                self._calculate_utility_for_student(
+                    self.professor_interests[agent_id],
+                    selected_student["profile_vector"]
+                )
+                for agent_id in self.professor_ids
+            )
+        else:
+            actual_total_utility = 0.0
 
         metrics["social_welfare"] = {
             "actual_total_utility": actual_total_utility,
@@ -925,6 +965,13 @@ class AsyncTickerAdmissionsEnv(gym.Env):
                 if consensus_turn is not None:
                     break
 
+        # Check whether the second professor to vote chose the same student as the first
+        # (measures herding: the second voter saw the first vote in their observation)
+        all_vote_msgs = [m for m in self.history_manager._all_messages if m["message_type"] == "vote" and "choice" in m]
+        second_vote_matches_first = None
+        if len(all_vote_msgs) >= 2:
+            second_vote_matches_first = int(all_vote_msgs[1]["choice"] == all_vote_msgs[0]["choice"])
+
         metrics["negotiation_dynamics"] = {
             "total_turns": total_turns,
             "turns_to_first_vote": first_vote_turn if first_vote_turn is not None else None,
@@ -933,6 +980,7 @@ class AsyncTickerAdmissionsEnv(gym.Env):
             "votes_cast": len(self.episode_state["votes"]),
             "vote_distribution": vote_distribution,
             "consensus_reached": int(self.episode_state["consensus_reached"]),
+            "second_vote_matches_first": second_vote_matches_first,
         }
 
         # 5. FAIRNESS METRICS
@@ -1068,6 +1116,7 @@ class AsyncTickerAdmissionsEnv(gym.Env):
         flattened["negotiation/consensus_reached"] = metrics["negotiation_dynamics"]["consensus_reached"]
         flattened["negotiation/voting_duration"] = metrics["negotiation_dynamics"]["voting_duration"]
         flattened["negotiation/votes_cast"] = metrics["negotiation_dynamics"]["votes_cast"]
+        flattened["negotiation/second_vote_matches_first"] = metrics["negotiation_dynamics"]["second_vote_matches_first"] if metrics["negotiation_dynamics"]["second_vote_matches_first"] is not None else -1
 
         # Vote distribution
         for student_idx, vote_count in metrics["negotiation_dynamics"]["vote_distribution"].items():

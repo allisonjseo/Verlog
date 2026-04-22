@@ -6,9 +6,9 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --partition=gpuA40x4
+#SBATCH --partition=gpuA100x4
 #SBATCH --account=bfoz-delta-gpu
-#SBATCH --time=47:59:59
+#SBATCH --time=9:59:59
 #SBATCH --gpus-per-node=4
 
 source /u/aseo/anaconda3/bin/activate
@@ -23,16 +23,16 @@ export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((NUM_GPUS_PER_NODE-1)))
 
 PROJECT_DIR="$(pwd)"
 CONFIG_PATH="$PROJECT_DIR/examples/sglang_multiturn/config"
-LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/train_16384/agent_model_train_16384.log}"
+LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/train_4_16384_group/agent_model_train_4_16384_group.log}"
 mkdir -p "$(dirname "$LOG_PATH")"
 : > "$LOG_PATH"
 export VERL_AGENT_IO_LOG_PATH="$LOG_PATH"
-export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/train_16384/game_log_train_16384.log"
+export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/train_4_16384_group/game_log_train_4_16384_group.log"
 
 NUM_ENVS=32
 BATCH_SIZE=256
 MINI_BATCH_SIZE=$((BATCH_SIZE))
-MICRO_BATCH_SIZE=8
+MICRO_BATCH_SIZE=2
 FORWARD_BATCH_SIZE=$((4 * MICRO_BATCH_SIZE))
 OFFLOAD=false
 PPO_EPOCHS=2
@@ -40,6 +40,7 @@ PPO_EPOCHS=2
 export VLLM_USE_V1=1
 export WANDB_API_KEY=5cd6b6564c0f79ebf65ce694e5e3b54b725ff225
 
+# reward_mode=group: all agents receive the total group utility (social welfare)
 python3 -m verl.trainer.main_ppo \
     --config-path="$CONFIG_PATH" \
     --config-name='gsm8k_multiturn_grpo' \
@@ -77,12 +78,12 @@ python3 -m verl.trainer.main_ppo \
     trainer.critic_warmup_batch_divide_ratio=4 \
     trainer.logger='["console","wandb"]' \
     trainer.project_name='interactive' \
-    trainer.experiment_name='marl_16384' \
+    trainer.experiment_name='marl_4_16384_group' \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.save_freq=-1 \
     trainer.test_freq=30 \
-    trainer.total_epochs=60 \
+    trainer.total_epochs=15 \
     trainer.val_before_train=True \
     envs.num_envs=${NUM_ENVS} \
     envs.env_name=async_ticker_admissions \
@@ -92,6 +93,7 @@ python3 -m verl.trainer.main_ppo \
     +envs.env_config.feature_dim=5 \
     +envs.env_config.vote_threshold=0.5 \
     +envs.env_config.max_steps=100 \
+    +envs.env_config.reward_mode=group \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=16384 \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=16384 \

@@ -23,11 +23,11 @@ export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((NUM_GPUS_PER_NODE-1)))
 
 PROJECT_DIR="$(pwd)"
 CONFIG_PATH="$PROJECT_DIR/examples/sglang_multiturn/config"
-LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/agent_model_train_2_16384_100.log}"
+LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/train_2_16384_100/agent_model_train_2_16384_100.log}"
 mkdir -p "$(dirname "$LOG_PATH")"
 : > "$LOG_PATH"
 export VERL_AGENT_IO_LOG_PATH="$LOG_PATH"
-export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/game_log_train_2_16384_100.log"
+export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/train_2_16384_100/game_log_train_2_16384_100.log"
 
 NUM_ENVS=32
 BATCH_SIZE=256
@@ -91,7 +91,7 @@ python3 -m verl.trainer.main_ppo \
     +envs.env_config.token_budget=1000 \
     +envs.env_config.feature_dim=5 \
     +envs.env_config.vote_threshold=0.5 \
-    +envs.env_config.max_steps=100 \
+    +envs.env_config.max_steps=50 \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=16384 \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=16384 \

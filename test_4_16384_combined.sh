@@ -1,15 +1,4 @@
 #!/bin/bash
-#SBATCH --job-name=marl
-#SBATCH --output=logs/slurm-%j.out
-#SBATCH --error=logs/slurm-%j.err
-#SBATCH --mem=240G
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=4
-#SBATCH --partition=gpuA40x4
-#SBATCH --account=bfoz-delta-gpu
-#SBATCH --time=47:59:59
-#SBATCH --gpus-per-node=4
 
 source /u/aseo/anaconda3/bin/activate
 conda activate verlog
@@ -23,16 +12,15 @@ export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((NUM_GPUS_PER_NODE-1)))
 
 PROJECT_DIR="$(pwd)"
 CONFIG_PATH="$PROJECT_DIR/examples/sglang_multiturn/config"
-LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/train_16384/agent_model_train_16384.log}"
+LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/test_4_16384_combined.log}"
 mkdir -p "$(dirname "$LOG_PATH")"
 : > "$LOG_PATH"
 export VERL_AGENT_IO_LOG_PATH="$LOG_PATH"
-export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/train_16384/game_log_train_16384.log"
 
 NUM_ENVS=32
 BATCH_SIZE=256
 MINI_BATCH_SIZE=$((BATCH_SIZE))
-MICRO_BATCH_SIZE=8
+MICRO_BATCH_SIZE=2
 FORWARD_BATCH_SIZE=$((4 * MICRO_BATCH_SIZE))
 OFFLOAD=false
 PPO_EPOCHS=2
@@ -40,6 +28,7 @@ PPO_EPOCHS=2
 export VLLM_USE_V1=1
 export WANDB_API_KEY=5cd6b6564c0f79ebf65ce694e5e3b54b725ff225
 
+# reward_mode=combined: 0.5 * individual_utility + 0.5 * group_utility
 python3 -m verl.trainer.main_ppo \
     --config-path="$CONFIG_PATH" \
     --config-name='gsm8k_multiturn_grpo' \
@@ -72,18 +61,18 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.use_kl_in_reward=True \
     trainer.balance_batch=False \
-    trainer.critic_warmup=10 \
+    trainer.critic_warmup=0 \
     trainer.critic_warmup_batch_repeat_times=40 \
     trainer.critic_warmup_batch_divide_ratio=4 \
     trainer.logger='["console","wandb"]' \
     trainer.project_name='interactive' \
-    trainer.experiment_name='marl_16384' \
+    trainer.experiment_name='test_4_16384_combined' \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.save_freq=-1 \
     trainer.test_freq=30 \
-    trainer.total_epochs=60 \
-    trainer.val_before_train=True \
+    trainer.total_epochs=2 \
+    trainer.val_before_train=False \
     envs.num_envs=${NUM_ENVS} \
     envs.env_name=async_ticker_admissions \
     +envs.env_config.professor_ids='["prof_1","prof_2","prof_3"]' \
@@ -91,7 +80,9 @@ python3 -m verl.trainer.main_ppo \
     +envs.env_config.token_budget=1000 \
     +envs.env_config.feature_dim=5 \
     +envs.env_config.vote_threshold=0.5 \
-    +envs.env_config.max_steps=100 \
+    +envs.env_config.max_steps=50 \
+    +envs.env_config.reward_mode=combined \
+    +envs.env_config.reward_alpha=0.5 \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=16384 \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=16384 \
