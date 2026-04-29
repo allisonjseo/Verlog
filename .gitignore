@@ -128,3 +128,7 @@ outputs
 .history
 
 *.whl*
+
+# monitor/ runtime files (config + generated settings)
+monitor/monitor.env
+monitor/_monitor-settings.json

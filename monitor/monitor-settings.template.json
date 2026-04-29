@@ -1,0 +1,33 @@
+{
+  "_comment": "Template — launch_monitor.sh substitutes REPO_ROOT and USER at startup to produce _monitor-settings.json. Sandbox is OFF because raw TCP for SLURM/wandb doesn't traverse Claude's bwrap proxy; gate.sh + permissions.deny enforce the actual guardrails.",
+  "sandbox": {
+    "enabled": false
+  },
+  "permissions": {
+    "deny": [
+      "Read(//u/USER/.ssh/**)",
+      "Read(//u/USER/.slack_bot_token)",
+      "Read(//u/USER/.wandb_key)",
+      "Read(//u/USER/.exp_log_config)",
+      "Bash(rm -rf*)",
+      "Bash(rm -fr*)",
+      "Bash(*scancel --all*)",
+      "Bash(*scancel -u *)",
+      "Bash(*scancel -A *)",
+      "Bash(*slack_bot_token*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "REPO_ROOT/claude-tools/slack/gate.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
