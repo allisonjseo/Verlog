@@ -321,6 +321,20 @@ class ToolAgentLoop(AgentLoopBase):
                 None,
                 lambda: self.tokenizer.decode(response_ids, skip_special_tokens=True)
             )
+
+            # If logprobs are available, pass metadata to environment for optional analysis
+            if output.log_probs:
+                response_tokens = [self.tokenizer.decode([tid]) for tid in response_ids]
+                action_dict = {
+                    "text": actions,
+                    "metadata": {
+                        "response_ids": response_ids,
+                        "response_logprobs": response_logprobs,
+                        "response_tokens": response_tokens,
+                    }
+                }
+                actions = action_dict
+
             log_entry = await self.loop.run_in_executor(
                 None,
                 lambda: self._append_step_io_log(
