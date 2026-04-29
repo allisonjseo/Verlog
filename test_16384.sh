@@ -31,7 +31,7 @@ export VERL_AGENT_IO_LOG_PATH="$LOG_PATH"
 NUM_ENVS=32
 BATCH_SIZE=256
 MINI_BATCH_SIZE=$((BATCH_SIZE))
-MICRO_BATCH_SIZE=4
+MICRO_BATCH_SIZE=2
 FORWARD_BATCH_SIZE=$((4 * MICRO_BATCH_SIZE))
 OFFLOAD=false
 PPO_EPOCHS=2
@@ -90,7 +90,7 @@ python3 -m verl.trainer.main_ppo \
     +envs.env_config.token_budget=1000 \
     +envs.env_config.feature_dim=5 \
     +envs.env_config.vote_threshold=0.5 \
-    +envs.env_config.max_steps=100 \
+    +envs.env_config.max_steps=50 \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=16384 \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=16384 \

@@ -1,6 +1,3 @@
-[submodule "third_party/unscripted_llms"]
-	path = third_party/unscripted_llms
-	url = https://github.com/cpulling/unscripted_llms.git
 [submodule "verl/envs/hiring_env"]
 	path = verl/envs/hiring_env
 	url = git@github.com:WentseChen/hiring_env.git

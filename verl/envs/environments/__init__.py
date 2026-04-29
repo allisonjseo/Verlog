@@ -55,7 +55,7 @@ def make_env(env_name, task, config, render_mode=None, tokenizer=None):
         return DummyOpenAIMultiEnv(prompt=dummy_prompt, num_agents=num_agents)
     elif env_name == "async_ticker_admissions":
         from omegaconf import OmegaConf
-        from verl.envs.async_ticker_env import AsyncTickerAdmissionsEnv, AsyncTickerEnvWrapper
+        from verl.envs.hiring_env_wrapper import make_async_ticker_env
 
         env_config = getattr(config.envs, "env_config", config.envs)
         env_config_dict = OmegaConf.to_container(env_config, resolve=True)
@@ -66,7 +66,7 @@ def make_env(env_name, task, config, render_mode=None, tokenizer=None):
             env_config_dict["prompt_length"] = config.actor_rollout_ref.rollout.prompt_length
         except Exception:
             pass
-        return AsyncTickerEnvWrapper(AsyncTickerAdmissionsEnv(env_config_dict, tokenizer=tokenizer))
+        return make_async_ticker_env(env_config_dict, tokenizer=tokenizer)
     else:
         raise ValueError(f"Unknown environment: {env_name}")
     

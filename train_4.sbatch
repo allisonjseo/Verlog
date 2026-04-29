@@ -23,11 +23,11 @@ export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((NUM_GPUS_PER_NODE-1)))
 
 PROJECT_DIR="$(pwd)"
 CONFIG_PATH="$PROJECT_DIR/examples/sglang_multiturn/config"
-LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/agent_model_train_4.log}"
+LOG_PATH="${VERL_AGENT_IO_LOG_PATH:-$PROJECT_DIR/logs/train_4/agent_model_train_4.log}"
 mkdir -p "$(dirname "$LOG_PATH")"
 : > "$LOG_PATH"
 export VERL_AGENT_IO_LOG_PATH="$LOG_PATH"
-export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/game_log_train_4.log"
+export VERL_GAME_LOG_PATH="$PROJECT_DIR/logs/train_4/game_log_train_4.log"
 
 NUM_ENVS=32
 BATCH_SIZE=256
