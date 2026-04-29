@@ -3,4 +3,4 @@
 	url = git@github.com:WentseChen/hiring_env.git
 [submodule "claude-tools"]
 	path = claude-tools
-	url = git@github.com:cpulling/verlog-claude-tools.git
+	url = https://github.com/cpulling/verlog-claude-tools.git
