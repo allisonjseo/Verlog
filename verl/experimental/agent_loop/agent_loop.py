@@ -1007,6 +1007,27 @@ class AgentLoopManager:
                 if values:
                     loop_stats[f"env/{key}"] = float(np.mean(values))
 
+            # Conditional aggregation by consensus_reached. Diagnostic for the critic-warmup
+            # phase: lets you see whether the value function is being trained mostly on
+            # zero-reward (no-consensus) episodes, and what reward/efficiency look like on
+            # the consensus subset. Computed over the full rollout batch; since the warmup
+            # subset (select_idxs) is sampled uniformly at random, the ratio is an unbiased
+            # estimate of the subset's. No-op for envs without `negotiation/consensus_reached`.
+            consensus_key = "negotiation/consensus_reached"
+            if any(consensus_key in em for em in all_env_metrics):
+                consensus_eps = [em for em in all_env_metrics if em.get(consensus_key, 0) == 1]
+                no_consensus_eps = [em for em in all_env_metrics if em.get(consensus_key, 0) == 0]
+                total = len(all_env_metrics)
+                loop_stats["env_consensus/count"] = float(len(consensus_eps))
+                loop_stats["env_consensus/ratio"] = float(len(consensus_eps)) / total if total else 0.0
+                for label, subset in (("env_consensus", consensus_eps), ("env_no_consensus", no_consensus_eps)):
+                    if not subset:
+                        continue
+                    for key in subset[0].keys():
+                        values = [m[key] for m in subset if key in m and isinstance(m[key], (int, float))]
+                        if values:
+                            loop_stats[f"{label}/{key}"] = float(np.mean(values))
+
         return timing, loop_stats
 
     def wake_up(self):

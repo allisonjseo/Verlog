@@ -208,6 +208,57 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> dict[str,
         "prompt_length/clip_ratio": torch.mean(torch.eq(prompt_length, max_prompt_length).float()).detach().item(),
     }
 
+    # ---- additional critic diagnostics ----
+    # vf_explained_var (above) measures regression scale-fit; the metrics here add
+    # rank-order quality (Pearson), an episode-start V/return signal that bypasses
+    # GAE token-smearing noise, and a per-agent breakdown to detect agent-specific
+    # asymmetries in critic fit.
+    if use_critic:
+        # Token-level Pearson correlation between V and returns (response-mask only).
+        # Complements vf_explained_var: EV is scale-sensitive, Pearson is rank-only.
+        if valid_values.numel() > 1 and valid_returns.numel() > 1:
+            vc = valid_values - valid_values.mean()
+            rc = valid_returns - valid_returns.mean()
+            denom = torch.sqrt((vc * vc).sum() * (rc * rc).sum()) + 1e-8
+            metrics["critic/v_return_pearson"] = (vc * rc).sum().div(denom).detach().item()
+
+        # V at the first response token of each trajectory row, plus its correlation
+        # with the GAE return-to-go from that same position (≈ trajectory return).
+        v_s0 = values[:, 0]
+        ret_s0 = returns[:, 0]
+        metrics["critic/v_s0/mean"] = v_s0.mean().detach().item()
+        metrics["critic/v_s0/std"] = v_s0.std().detach().item() if v_s0.numel() > 1 else 0.0
+        if v_s0.numel() > 1:
+            v0c = v_s0 - v_s0.mean()
+            r0c = ret_s0 - ret_s0.mean()
+            denom0 = torch.sqrt((v0c * v0c).sum() * (r0c * r0c).sum()) + 1e-8
+            metrics["critic/v_s0_return_pearson"] = (v0c * r0c).sum().div(denom0).detach().item()
+
+        # Per-agent breakdown. Guarded — no-op when agent_id isn't in non_tensor_batch.
+        if "agent_id" in batch.non_tensor_batch:
+            agent_ids = batch.non_tensor_batch["agent_id"]
+            if not isinstance(agent_ids, np.ndarray):
+                agent_ids = np.asarray(agent_ids)
+            for aid in sorted(set(agent_ids.tolist())):
+                row_mask_np = (agent_ids == aid)
+                row_mask = torch.from_numpy(row_mask_np).to(values.device)
+                if not row_mask.any():
+                    continue
+                vals_a = torch.masked_select(values[row_mask], response_mask[row_mask])
+                rets_a = torch.masked_select(returns[row_mask], response_mask[row_mask])
+                if vals_a.numel() == 0:
+                    continue
+                diff_var_a = torch.var(rets_a - vals_a)
+                ret_var_a = torch.var(rets_a)
+                ev_a = (1.0 - diff_var_a / (ret_var_a + 1e-5)).detach().item()
+                loss_a = ((rets_a - vals_a) ** 2).mean().detach().item()
+                safe_aid = str(aid).replace("/", "_")
+                metrics[f"critic/per_agent/{safe_aid}/ev"] = ev_a
+                metrics[f"critic/per_agent/{safe_aid}/critic_loss"] = loss_a
+                metrics[f"critic/per_agent/{safe_aid}/return_mean"] = rets_a.mean().detach().item()
+                metrics[f"critic/per_agent/{safe_aid}/value_mean"] = vals_a.mean().detach().item()
+                metrics[f"critic/per_agent/{safe_aid}/count"] = float(row_mask.sum().detach().item())
+
     # multi-turn conversation (num_turns for each trajectory)
     if "__num_turns__" in batch.non_tensor_batch:
         num_turns = batch.non_tensor_batch["__num_turns__"] # turn_idx for each data point
