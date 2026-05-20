@@ -1,6 +1,7 @@
 [submodule "verl/envs/hiring_env"]
 	path = verl/envs/hiring_env
 	url = git@github.com:WentseChen/hiring_env.git
+	branch = verlog-claude-tools
 [submodule "claude-tools"]
 	path = claude-tools
 	url = https://github.com/cpulling/verlog-claude-tools.git
