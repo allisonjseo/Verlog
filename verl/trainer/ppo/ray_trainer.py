@@ -703,7 +703,14 @@ class RayPPOTrainer:
             metric_dict = dict()
             metric_dict["mean_rewards"] = val_rewards.mean().item()
             metric_dict["mean_traj_len"] = val_traj_len.mean().item()
-            
+
+            # Merge rollout-loop stats (env/*, env_consensus/*, agent_loop/*) under a
+            # `val-` prefix so val_before_train surfaces the same rich env metric
+            # schema that training-step rollouts log via ray_trainer.py:1211.
+            loop_stats = test_output_gen_batch_padded.meta_info.get("loop_stats", {})
+            for k, v in loop_stats.items():
+                metric_dict[f"val-{k}"] = v
+
             # randomly log some generations (s, a, r)
             data_size = len(test_output_gen_batch_padded.batch["rewards"])
             sample_num = self.config.trainer.log_val_generations
